@@ -2,8 +2,8 @@
 set -euxo pipefail
 # PX4 and dependencies
 cd
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
+sudo git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+sudo bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
 
 # gazebo classic
 sudo apt update && sudo apt install -y locales
