@@ -10,7 +10,7 @@ sudo apt update
 sudo apt install -y i3
 sudo apt install -y terminator
 sudo printf "#!/bin/bash\nexec i3" > ~/.xinitrc
-sudo printf "if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then \n\tstartx\nfi" >> ~/.bashrc
+sudo printf "if [[ -z \$DISPLAY ]] && [[ \$(tty) = /dev/tty1 ]]; then \n\tstartx\nfi" >> ~/.bashrc
 sudo mkdir -p ~/.config/i3
 sudo mv config ~/.config/i3/
 sudo reboot
