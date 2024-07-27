@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -euxo pipefail
 # PX4 and dependencies
 cd
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
