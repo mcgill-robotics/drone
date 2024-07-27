@@ -11,7 +11,7 @@ sudo locale-gen en_US en_US.UTF-8
 sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 sudo apt install -y software-properties-common
-sudo add-apt-repository universe
+sudo add-apt-repository universe -y
 sudo apt install -y gazebo libgazebo11 libgazebo-dev
 
 # ROS humble 
