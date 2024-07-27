@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euxo pipefail
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y xorg xinit
 # Install i3
