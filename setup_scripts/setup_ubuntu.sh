@@ -10,5 +10,6 @@ sudo apt install -y i3
 sudo apt install -y terminator
 sudo printf "#!/bin/bash\nexec i3" > ~/.xinitrc
 sudo echo "startx" >> ~/.bashrc
-sudo mv config ~/.config/i3/config
+sudo mkdir -p ~/.config/i3
+sudo mv config ~/.config/i3/
 
