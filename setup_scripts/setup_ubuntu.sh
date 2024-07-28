@@ -16,5 +16,5 @@ sudo apt install -y terminator
 sudo printf "#!/bin/bash\nexec i3" > ~/.xinitrc
 sudo printf "\nif [[ -z \$DISPLAY ]] && [[ \$(tty) = /dev/tty1 ]]; then \n\tstartx\nfi\n" >> ~/.bashrc
 sudo mkdir -p ~/.config/i3
-sudo mv config ~/.config/i3/
+sudo cp config ~/.config/i3/
 sudo reboot
