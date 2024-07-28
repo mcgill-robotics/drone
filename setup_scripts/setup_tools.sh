@@ -2,7 +2,7 @@
 set -euxo pipefail
 # PX4 and dependencies
 cd
-sudo git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 
 # gazebo classic
 sudo apt update && sudo apt install -y locales
@@ -22,4 +22,4 @@ sudo apt install -y ros-dev-tools
 source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
 
 # PX4 dependencies
-sudo bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
+bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
