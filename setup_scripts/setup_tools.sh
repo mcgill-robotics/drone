@@ -3,7 +3,6 @@ set -euxo pipefail
 # PX4 and dependencies
 cd
 sudo git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-sudo bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
 
 # gazebo classic
 sudo apt update && sudo apt install -y locales
@@ -11,8 +10,7 @@ sudo locale-gen en_US en_US.UTF-8
 sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 sudo apt install -y software-properties-common
-sudo add-apt-repository universe -y
-sudo apt install -y gazebo libgazebo11 libgazebo-dev
+curl -sSL http://get.gazebosim.org | sh
 
 # ROS humble 
 sudo apt update && sudo apt install curl -y
@@ -22,3 +20,6 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y ros-humble-desktop
 sudo apt install -y ros-dev-tools
 source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
+
+# PX4 dependencies
+sudo bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools
