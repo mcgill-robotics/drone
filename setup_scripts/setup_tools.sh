@@ -18,9 +18,9 @@ sudo apt install -y ros-dev-tools
 source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
 
 # PX4 dependencies
-bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+yes | bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 
 # gazebo classic
-sudo apt remove gz-garden
-sudo apt install aptitude
-sudo aptitude install gazebo libgazebo11 libgazebo-dev
+sudo apt remove gz-garden -y
+sudo apt install aptitude -y
+sudo aptitude install gazebo libgazebo11 libgazebo-dev -y
