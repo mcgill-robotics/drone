@@ -23,4 +23,5 @@ bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 # gazebo classic
 sudo apt remove gz-garden -y
 sudo apt install aptitude -y
+sudo apt autoremove -y
 sudo aptitude install gazebo libgazebo11 libgazebo-dev -y
