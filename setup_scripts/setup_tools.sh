@@ -18,7 +18,7 @@ sudo apt install -y ros-dev-tools
 source /opt/ros/humble/setup.bash && echo "source /opt/ros/humble/setup.bash" >> .bashrc
 
 # PX4 dependencies
-yes | bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 
 # gazebo classic
 sudo apt remove gz-garden -y
