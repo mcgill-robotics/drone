@@ -2,7 +2,8 @@
 set -euxo pipefail
 # PX4 and dependencies
 cd
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+git config --global core.compression 0
+git clone --depth 1 https://github.com/PX4/PX4-Autopilot.git --recursive
 
 # ROS humble 
 sudo apt update && sudo apt install -y locales
