@@ -17,4 +17,9 @@ sudo printf "#!/bin/bash\nexec i3" > ~/.xinitrc
 sudo printf "\nif [[ -z \$DISPLAY ]] && [[ \$(tty) = /dev/tty1 ]]; then \n\tstartx\nfi\n" >> ~/.bashrc
 sudo mkdir -p ~/.config/i3
 sudo cp config ~/.config/i3/
+
+# Install network manager
+sudo apt install -y network-manager
+
+# reboot
 sudo reboot
