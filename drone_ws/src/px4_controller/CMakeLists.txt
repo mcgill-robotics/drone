@@ -10,6 +10,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -18,7 +19,7 @@ find_package(MAVSDK REQUIRED)
 
 add_executable(drone_node src/drone_node.cpp)
 target_link_libraries(drone_node MAVSDK::mavsdk)
-ament_target_dependencies(drone_node rclcpp std_msgs MAVSDK)
+ament_target_dependencies(drone_node rclcpp std_msgs geometry_msgs MAVSDK)
 
 target_include_directories(drone_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
