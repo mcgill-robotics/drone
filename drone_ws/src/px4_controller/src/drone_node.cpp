@@ -1,45 +1,32 @@
-// Copyright 2016 Open Source Robotics Foundation, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 #include <connection_result.h>
 #include <functional>
-#include <geometry_msgs/msg/detail/point_stamped__struct.hpp>
+#include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
 #include <memory>
 
-#include "geometry_msgs/msg/point_stamped.hpp"
+#include "custom_msgs/msg/local_pos_vel.hpp"
+#include "geometry_msgs/msg/transform_stamped.h"
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_ros/static_transform_broadcaster.h"
+#include "tf2_ros/transform_broadcaster.h"
 #include <mavsdk/mavsdk.h>
-#include <mavsdk/plugins/action/action.h>
 #include <mavsdk/plugins/telemetry/telemetry.h>
-#include <rclcpp/logging.hpp>
-#include <rclcpp/publisher.hpp>
-#include <rclcpp/timer.hpp>
-#include <string>
 
 using namespace std::chrono_literals;
 
 class OffboardNode : public rclcpp::Node {
 public:
   OffboardNode() : Node("offboard_controller") {
-    // ROS stuff
-    monitoring_topic = this->create_publisher<geometry_msgs::msg::PointStamped>(
-        "drone_position", 10);
+
+    // tf2 stuff
+    tf_world_broadcaster =
+        std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+    this->make_world_frame();
+
+    tf_drone_broadcaster =
+        std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     // MAVSDK stuff
-    monitoring_topic = this->create_publisher<geometry_msgs::msg::PointStamped>(
-        "drone_position", 10);
     mavsdk = std::make_unique<mavsdk::Mavsdk>(mavsdk::Mavsdk::Configuration{
         mavsdk::Mavsdk::ComponentType::GroundStation});
     mavsdk::ConnectionResult con_res =
@@ -59,47 +46,96 @@ public:
     }
 
     mavsdk_telem = std::make_unique<mavsdk::Telemetry>(sys.value());
-    const auto set_rate_res = mavsdk_telem->set_rate_position(0.5);
-    if (set_rate_res != mavsdk::Telemetry::Result::Success) {
-      RCLCPP_ERROR(this->get_logger(), "Couldn't set rate for telemetry %d",
-                   set_rate_res);
-      std::exit(3);
-    }
+    this->setup_monitoring();
 
-    mavsdk_telem->subscribe_position([this](mavsdk::Telemetry::Position pos) {
-      auto msg = geometry_msgs::msg::PointStamped();
-      msg.point.x = pos.latitude_deg;
-      msg.point.y = pos.longitude_deg;
-      msg.point.z = pos.relative_altitude_m;
-      this->monitoring_topic->publish(msg);
-    });
-
-    // subscription_ = this->create_subscription<std_msgs::msg::String>(
-    //     "topic", 10, std::bind(&OffboardNode::topic_callback, this,
-    //     std::placeholders::_1));
-    // timer_ = this->create_wall_timer(
-    //     500ms, std::bind(&OffboardNode::monitoring_callback, this));
+    // ROS stuff
+    monitoring_topic = this->create_publisher<custom_msgs::msg::LocalPosVel>(
+        "drone_position", 10);
+    this->timer_ = this->create_wall_timer(
+        100ms, std::bind(&OffboardNode::monitoring_callback, this));
   }
 
 private:
-  // void monitoring_callback() {
-  //   auto msg = geometry_msgs::msg::PointStamped();
-  //   msg.point.x = 10.;
-  //   msg.point.y = 20.;
-  //   msg.point.z = 30.;
-  //   monitoring_topic->publish(msg);
-  // }
+  void make_world_frame() {
+    geometry_msgs::msg::TransformStamped t;
+    t.header.stamp = this->get_clock()->now();
+    t.header.frame_id = "world";
+    t.child_frame_id = "None";
 
-  // void topic_callback(const std_msgs::msg::String &msg) const {
-  //   RCLCPP_INFO(this->get_logger(), "I heard: '%s'", msg.data.c_str());
-  // }
+    t.transform.translation.x = 0;
+    t.transform.translation.y = 0;
+    t.transform.translation.z = 0;
 
-  // rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
+    t.transform.rotation.x = 1;
+    t.transform.rotation.y = 0;
+    t.transform.rotation.z = 0;
+    t.transform.rotation.w = 0;
+
+    this->tf_world_broadcaster->sendTransform(t);
+  }
+
+  void setup_monitoring() {
+
+    msg.header.frame_id = "world";
+    transform.header.frame_id = "world";
+    transform.child_frame_id = "drone";
+
+    mavsdk_telem->subscribe_position_velocity_ned(
+        [this](mavsdk::Telemetry::PositionVelocityNed pos) {
+          msg.n = pos.position.north_m;
+          msg.e = pos.position.east_m;
+          msg.d = pos.position.down_m;
+
+          msg.vn = pos.velocity.north_m_s;
+          msg.ve = pos.velocity.east_m_s;
+          msg.vd = pos.velocity.down_m_s;
+
+          transform.transform.translation.x = pos.position.north_m;
+          transform.transform.translation.y = pos.position.east_m;
+          transform.transform.translation.z = pos.position.down_m;
+        });
+
+    auto gps_orig = this->mavsdk_telem->get_gps_global_origin();
+    msg.origin_lon = gps_orig.second.longitude_deg;
+    msg.origin_lat = gps_orig.second.latitude_deg;
+    msg.origin_alt = gps_orig.second.altitude_m;
+
+    mavsdk_telem->subscribe_attitude_quaternion(
+        [this](mavsdk::Telemetry::Quaternion quat) {
+          msg.x = quat.x;
+          msg.y = quat.y;
+          msg.z = quat.z;
+          msg.w = quat.w;
+          transform.transform.rotation.x = quat.x;
+          transform.transform.rotation.y = quat.y;
+          transform.transform.rotation.z = quat.z;
+          transform.transform.rotation.w = quat.w;
+        });
+
+    mavsdk_telem->subscribe_attitude_angular_velocity_body(
+        [this](mavsdk::Telemetry::AngularVelocityBody angular_vel) {
+          msg.roll_rad_s = angular_vel.roll_rad_s;
+          msg.pitch_rad_s = angular_vel.pitch_rad_s;
+          msg.yaw_rad_s = angular_vel.yaw_rad_s;
+        });
+  }
+
+  void monitoring_callback() {
+    msg.header.stamp = this->get_clock()->now();
+    transform.header.stamp = this->get_clock()->now();
+    this->tf_drone_broadcaster->sendTransform(transform);
+    this->monitoring_topic->publish(msg);
+  }
 
   // ROS2 related stuff
-  rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr
-      monitoring_topic;
+  rclcpp::Publisher<custom_msgs::msg::LocalPosVel>::SharedPtr monitoring_topic;
+  custom_msgs::msg::LocalPosVel msg;
   rclcpp::TimerBase::SharedPtr timer_;
+
+  // tf2 - transforms for Rviz visualization
+  std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_world_broadcaster;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_drone_broadcaster;
+  geometry_msgs::msg::TransformStamped transform;
 
   // mavsdk related stuff
   std::optional<std::shared_ptr<mavsdk::System>> sys;
