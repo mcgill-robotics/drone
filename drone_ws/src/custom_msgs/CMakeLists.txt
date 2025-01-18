@@ -14,7 +14,8 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/LocalPosVel.msg"
+  "msg/DroneState.msg"
+  "msg/Action.msg"
   DEPENDENCIES std_msgs
   ADD_LINTER_TESTS
  )

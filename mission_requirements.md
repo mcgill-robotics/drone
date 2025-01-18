@@ -1,0 +1,45 @@
+# SUAS requirements
+## Performance requirements
+- fly 3 miles with full load
+- Waypoint error should be configurable, max 50ft
+- stay within mission boudaries
+- stay above 50 ft AGL when more than 200ft away
+## Notes
+- Trees can be up to 140 ft tall, this is to be considered when setting points above trees.
+- drone should be between 50ft AGL to 400ft AGL at all times.
+- mission boudaries:
+   - 38.317297, -76.556176
+   - 38.315948, -76.556573
+   - 38.315467, -76.553762
+   - 38.314709, -76.549363
+   - 38.314241, -76.546627
+   - 38.313698, -76.543423 
+   - 38.313310, -76.541096
+   - 38.315299, -76.540521
+   - 38.315876, -76.543613
+   - 38.318616, -76.545385
+   - 38.318626, -76.552061
+   - 38.317034, -76.552447
+   - 38.316742, -76.552945
+- GCS:
+   - presents a maps showing flight boundaries, UAS position.
+   - All other competition elements.
+   - Indicate the UAS speed in KIAS or ground speed in knots
+   - Indicate the altitude above MSL in feet.
+- Must perform waypoint lap before attempting other tasks
+   - Team may decide the order of all other tasks after the lap
+- 15 mins Setup Time:
+   - Before mission Will receive the waypoints and other mission details by paper printout
+   - Given in UTM decimal degree and altitude in feet AGL and MSL
+   - last 5 mins pre-mission we must give a pre-mission brief (what we're gonna do in which order).
+   - brief must include identification of the GCS operator and safety pilot
+- 30 min Mission Time:
+   - mission timer start as soon as the above 15 mins are done
+   - Timer keeps going until the UAS has landed and the UAS has cleared the runway AND the team relinquishes the airspace.
+   - Can get a 10 min timeout, which will stop the mission time for 10 mins. Requesting this timeout will result in a penalty.
+- 10 min tear down time:
+   - Team is provided with 10 mins to remove all equipement from the flight line tent area.
+
+- Autonomous flight
+   - takeoff and landing may be done autonomously or manually, more points for autonomous flight
+   - 
