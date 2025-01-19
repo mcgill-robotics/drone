@@ -15,6 +15,13 @@ find_package(std_msgs REQUIRED)
 # find_package(<dependency> REQUIRED)
 
 add_executable(map_n_plan src/mapping.cpp)
+
+# set(ENV{octomap_DIR} /home/unhappysquid/octomap/)
+include_directories(${OCTOMAP_INCLUDE_DIRS})
+link_directories(${OCTOMAP_LIBRARY_DIRS})
+link_libraries(${OCTOMAP_LIBRARIES})
+
+
 target_link_libraries(map_n_plan  octomap)
 ament_target_dependencies(map_n_plan rclcpp std_msgs octomap)
 
@@ -25,7 +32,7 @@ target_include_directories(map_n_plan PUBLIC
 target_compile_features(map_n_plan PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 install(TARGETS map_n_plan
-  DESTINATION lib/${PROJECT_NAME} ${CMAKE_INSTALL_DATADIR}/octomap)
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
