@@ -1,26 +1,28 @@
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <octomap/OcTree.h>
-#include <octomap/octomap.h>
 #include <string>
 
+#include "Eigen/Dense"
+#include "octomap/OcTree.h"
+#include "octomap/octomap.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 
 using namespace std::chrono_literals;
 using namespace octomap;
+using namespace Eigen;
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
-void print_query_info(point3d query, OcTreeNode* node) {
+void print_query_info(point3d query, OcTreeNode *node) {
   if (node != NULL) {
-    std::cout << "occupancy probability at " << query << ":\t " << node->getOccupancy() << std::endl;
-  }
-  else 
-    std::cout << "occupancy probability at " << query << ":\t is unknown" << std::endl;    
+    std::cout << "occupancy probability at " << query << ":\t "
+              << node->getOccupancy() << std::endl;
+  } else
+    std::cout << "occupancy probability at " << query << ":\t is unknown"
+              << std::endl;
 }
-
 
 class MinimalPublisher : public rclcpp::Node {
 public:
@@ -60,6 +62,13 @@ public:
     query = point3d(1., 1., 1.);
     result = tree.search(query);
     print_query_info(query, result);
+
+    MatrixXd m(2, 2);
+    m(0, 0) = 3;
+    m(1, 0) = 2.5;
+    m(0, 1) = -1;
+    m(1, 1) = m(1, 0) + m(0, 1);
+    std::cout << m << std::endl;
   }
 
 private:

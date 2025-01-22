@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(octomap REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -22,7 +23,7 @@ link_directories(${OCTOMAP_LIBRARY_DIRS})
 link_libraries(${OCTOMAP_LIBRARIES})
 
 
-target_link_libraries(map_n_plan  octomap)
+target_link_libraries(map_n_plan  octomap Eigen3::Eigen)
 ament_target_dependencies(map_n_plan rclcpp std_msgs octomap)
 
 target_include_directories(map_n_plan PUBLIC
