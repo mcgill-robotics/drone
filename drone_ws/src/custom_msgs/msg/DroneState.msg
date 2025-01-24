@@ -20,6 +20,8 @@ uint32 ACRO=12
 uint32 STABILIZED=13
 uint32 RATTITUDE=14
 
+string current_command
+
 uint32 flight_mode
 
 bool in_air
