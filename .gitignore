@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/ros2,visualstudiocode,vim,python,c++,cmake,opencv
 # Edit at https://www.toptal.com/developers/gitignore?templates=ros2,visualstudiocode,vim,python,c++,cmake,opencv
 
+### OctoMap ###
+*.bt
+
 ### C++ ###
 # Prerequisites
 *.d
