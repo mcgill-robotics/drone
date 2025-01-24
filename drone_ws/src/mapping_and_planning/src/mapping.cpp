@@ -1,7 +1,10 @@
 #include <chrono>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
+#include <math.h>
 
 #include "Eigen/Dense"
 #include "octomap/OcTree.h"
@@ -10,77 +13,66 @@
 #include "std_msgs/msg/string.hpp"
 
 using namespace std::chrono_literals;
-using namespace octomap;
-using namespace Eigen;
-/* This example creates a subclass of Node and uses std::bind() to register a
- * member function as a callback from the timer. */
-
-void print_query_info(point3d query, OcTreeNode *node) {
-  if (node != NULL) {
-    std::cout << "occupancy probability at " << query << ":\t "
-              << node->getOccupancy() << std::endl;
-  } else
-    std::cout << "occupancy probability at " << query << ":\t is unknown"
-              << std::endl;
-}
 
 class MinimalPublisher : public rclcpp::Node {
 public:
-  MinimalPublisher() : Node("minimal_publisher"), count_(0) {
-    publisher_ = this->create_publisher<std_msgs::msg::String>("topic", 10);
-    timer_ = this->create_wall_timer(
-        500ms, std::bind(&MinimalPublisher::timer_callback, this));
-    OcTree tree(0.1); // create empty tree with resolution 0.1
-    for (int x = -20; x < 20; x++) {
-      for (int y = -20; y < 20; y++) {
-        for (int z = -20; z < 20; z++) {
-          point3d endpoint((float)x * 0.05f, (float)y * 0.05f,
-                           (float)z * 0.05f);
-          tree.updateNode(endpoint, true); // integrate 'occupied' measurement
-        }
-      }
+  MinimalPublisher()
+      : Node("minimal_publisher"), drone_frame(4, 4), octomap_granularity(3.) {
+    this->drone_frame(3, 3) = 1.;
+    Eigen::Quaterniond quat(1, 0, 0, 0);
+    auto rotation = quat.matrix();
+    Eigen::Vector3d translation(10, 20, 30);
+    this->drone_frame.block<3, 3>(0, 0) = rotation;
+    this->drone_frame.block<3, 1>(0, 3) = translation;
+
+    std::cout << this->drone_frame << std::endl;
+
+    // Example boundary and detection, refer to the mapping docs for how the map looks like
+    std::vector<Eigen::Vector2d> boundary{{-10, 30}, {20, 30}, {20, 10},
+                                          {30, 10},  {30, 0},  {-30, 0},
+                                          {-30, 10}, {-10, 10}};
+   
+    // First detection should be right above the drone, 5 meters away, with radius 2
+    // Second on should be to the right of the drone, 5 meters away, with a radius 10.
+    std::vector<Eigen::Vector4d> detections{{0.0, M_PI, 5., 2.}, {M_PI, 2*M_PI, 20., 10.}};
+
+    std::cout << "Boundary :" << std::endl;
+    for (auto vec : boundary) {
+      std::cout << vec << std::endl;
+    }
+    std::cout << "Detections :" << std::endl;
+    for (auto vec : detections) {
+      std::cout << vec << std::endl;
     }
 
-    for (int x = -30; x < 30; x++) {
-      for (int y = -30; y < 30; y++) {
-        for (int z = -30; z < 30; z++) {
-          point3d endpoint((float)x * 0.02f - 1.0f, (float)y * 0.02f - 1.0f,
-                           (float)z * 0.02f - 1.0f);
-          tree.updateNode(endpoint, false); // integrate 'free' measurement
-        }
-      }
-    }
+    octomap::OcTree tree = build_octomap(boundary, detections);
+    tree.writeBinary("simple_tree.bt");
+    std::cout << "wrote octomap file simple_tree.bt" << std::endl << std::endl;
+    std::cout << "now you can use octovis to visualize: octovis simple_tree.bt"
+              << std::endl;
+  }
 
-    point3d query(0., 0., 0.);
-    OcTreeNode *result = tree.search(query);
-    print_query_info(query, result);
+  octomap::OcTree build_octomap(std::vector<Eigen::Vector2d> boundary,
+                                std::vector<Eigen::Vector4d> detections) {
+    octomap::OcTree tree(this->octomap_granularity);
 
-    query = point3d(-1., -1., -1.);
-    result = tree.search(query);
-    print_query_info(query, result);
+    // TODO: Fill your code here
+    // Build the tree, refer to
+    // https://github.com/OctoMap/octomap/blob/devel/octomap/src/simple_example.cpp
+    // for an example of how to use octomap The drone's frame of reference is in
+    // the this->drone_frame matrix (homogenous coords) std::vector is C++'s
+    // class for an ArrayList, Eigen::Vector2d and Eigen::Vector4d are eigen's
+    // implementation of linear algebra vectors
+    // Avoid the keyword `new` or any form of heap utilization, just use the
+    // stack! If you do use `new`, always remember to use `delete` when
+    // appropriate to free the memory.
 
-    query = point3d(1., 1., 1.);
-    result = tree.search(query);
-    print_query_info(query, result);
-
-    MatrixXd m(2, 2);
-    m(0, 0) = 3;
-    m(1, 0) = 2.5;
-    m(0, 1) = -1;
-    m(1, 1) = m(1, 0) + m(0, 1);
-    std::cout << m << std::endl;
+    return tree;
   }
 
 private:
-  void timer_callback() {
-    auto message = std_msgs::msg::String();
-    message.data = "Hello, world! " + std::to_string(count_++);
-    RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
-    publisher_->publish(message);
-  }
-  rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
-  size_t count_;
+  Eigen::MatrixXd drone_frame;
+  double octomap_granularity;
 };
 
 int main(int argc, char *argv[]) {
