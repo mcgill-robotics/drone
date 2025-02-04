@@ -13,7 +13,7 @@ find_package(std_msgs REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(rosidl_default_generators REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(mapping_and_planning REQUIRED)
+find_package(mapping_and_planning REQUIRED) 
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Obstacle.msg"
@@ -23,8 +23,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-add_executable(map_n_plan src/mapping.cpp)
 
+add_executable(map_n_plan src/mapping.cpp)
+# Fix double namespace issue
+set(_generated_files_dir "${CMAKE_BINARY_DIR}/rosidl_generator_cpp")
+target_include_directories(map_n_plan PUBLIC
+  ${_generated_files_dir}
+)
 # set(ENV{octomap_DIR} /home/unhappysquid/octomap/)
 include_directories(${OCTOMAP_INCLUDE_DIRS})
 link_directories(${OCTOMAP_LIBRARY_DIRS})

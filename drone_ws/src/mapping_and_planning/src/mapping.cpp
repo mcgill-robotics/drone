@@ -14,7 +14,7 @@ Planner::Planner()
     bounds_sub_ = this->create_subscription<geometry_msgs::msg::Polygon>(
       "mission_boundary", 10, bind(&Planner::boundaryCallback, this, _1));
     
-    obs_sub_ = this->create_subscription<mapping_and_planning::msg::Obstacle>(
+    obs_sub_ = this->create_subscription<mapping_and_planning::msg::ObstacleArray>(
       "detection", 10, std::bind(&Planner::obstacleCallback, this, _1));
     cout << this->drone_frame_ << endl;
 
