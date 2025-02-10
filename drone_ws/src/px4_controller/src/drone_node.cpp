@@ -114,6 +114,8 @@ private:
     }
     virtual std::string get_description() = 0;
 
+    virtual void mutate(Command *new_command) {}
+    virtual bool is_fw() { return false; }
     virtual ~Command() {}
   };
 
@@ -198,7 +200,7 @@ private:
     }
 
     virtual std::string get_description() override {
-      return string_format("Going to %lf, %lf, %lf", target_n, target_e,
+      return string_format("Going to %lf, %lf, %lf in QC", target_n, target_e,
                            target_d);
     }
 
@@ -209,143 +211,93 @@ private:
     bool goto_command_sent = false;
   };
 
-  // TODO: Do this
-  struct GoToFW : Command {};
+  struct GoToFW : Command {
+
+    GoToFW(double n, double e, double d)
+        : target_n(n), target_e(e), target_d(d) {}
+
+    // TODO: Do this
+    virtual bool perform_tick(OffboardNode &node) override {
+      // IF PREV NOT FW:
+      // FIX HEADING
+      // TRANSITION
+      // START HEADING THERE
+      // IF NEXT COMMAND IS ALSO FW, RETURN TRUE WHEN REACHED AND PASS THAT INFO
+      // INTO NEXT COMMAND ELSE, PRE-UNTRANSITION THEN RETURN TRUE WHEN REACHED
+      RCLCPP_INFO(node.get_logger(), "FW TYPE: %s", get_type_str().c_str());
+      return true;
+    }
+
+    // TODO: Fix cancel command for FW
+    virtual bool cancel_command(OffboardNode &node) override { return true; }
+
+    virtual std::string get_description() override {
+      return string_format("Going to %lf, %lf, %lf in FW", target_n, target_e,
+                           target_d);
+    }
+    virtual void mutate(Command *new_command) override {
+      if (new_command->is_fw()) {
+        static_cast<GoToFW *>(new_command)->type = END;
+        switch (type) {
+        case SOLE:
+          type = START;
+          break;
+        case START:
+          break;
+        case MIDDLE:
+          break;
+        case END:
+          type = MIDDLE;
+          break;
+        }
+      }
+    }
+
+    virtual bool is_fw() override { return true; }
+
+  private:
+    enum TypeFW { SOLE = 1, START = 2, MIDDLE = 3, END = 4 };
+    std::string get_type_str() {
+      switch (type) {
+      case SOLE:
+        return "SOLE";
+      case START:
+        return "START";
+      case MIDDLE:
+        return "MIDDLE";
+      case END:
+        return "END";
+      }
+    }
+    TypeFW type = TypeFW::SOLE;
+    double target_n, target_e, target_d;
+  };
+
   struct Hold : Command {};
 
-  // struct GoTo : Command {
-  //   GoTo(double n, double e, double d, double vn, double ve, double vd,
-  //        FlightMode fm) {
-  //
-  //     target_n = n;
-  //     target_e = e;
-  //     target_d = d;
-  //
-  //     target_vn = vn;
-  //     target_ve = ve;
-  //     target_vd = vd;
-  //
-  //     desired_mode = fm;
-  //   }
-  //
-  //   virtual bool is_goto() override { return true; }
-  //
-  //   virtual std::optional<GoToTuple> get_goto_tuple() override {
-  //     return std::optional<GoToTuple>(GoToTuple(
-  //         target_n, target_e, target_d, target_vn, target_ve, target_vd));
-  //   };
-  //
-  //   virtual std::optional<FlightMode> get_desired_fm() override {
-  //     return std::optional<FlightMode>(desired_mode);
-  //   }
-  //
-  //   // TODO: Finish implementing velocity and yaw control
-  //   virtual bool perform_tick(OffboardNode &node) override {
-  //     if (!start_pos_recorded) {
-  //       start_pos_recorded = true;
-  //       start_n = node.state.n;
-  //       start_e = node.state.e;
-  //       start_d = node.state.d;
-  //     }
-  //
-  //     // switch to offboard if not already
-  //     if (node.state.flight_mode != custom_msgs::msg::DroneState::OFFBOARD) {
-  //       node.mavsdk_offboard->start();
-  //     }
-  //
-  //     // send transition command if need to and if not sent already
-  //     if (node.state.vtol_state != desired_mode && !transtion_order_sent) {
-  //       mavsdk::Action::Result res;
-  //       if (desired_mode == FlightMode::QC) {
-  //         res = node.mavsdk_action->transition_to_multicopter();
-  //       } else {
-  //         res = node.mavsdk_action->transition_to_fixedwing();
-  //       }
-  //       if (res == mavsdk::Action::Result::Success)
-  //         transtion_order_sent = true;
-  //       return false;
-  //     }
-  //
-  //     double dist_from_target = sqrt(pow((node.state.n - target_n), 2) +
-  //                                    pow((node.state.e - target_e), 2) +
-  //                                    pow((node.state.d - target_d), 2));
-  //
-  //     // if above tolerance and command to go somewhere wasnt sent already
-  //     if (((desired_mode == FlightMode::QC && dist_from_target >= 1.) ||
-  //          (desired_mode == FlightMode::FW && dist_from_target >= 10.)) &&
-  //         !goto_order_sent) {
-  //       mavsdk::Offboard::PositionNedYaw pos;
-  //       pos.north_m = target_n;
-  //       pos.east_m = target_e;
-  //       pos.down_m = target_d;
-  //
-  //       pos.yaw_deg = NAN;
-  //       // If there is a next goto action
-  //       if (node.command_deque.size() >= 1 &&
-  //           node.command_deque[0]->is_goto()) {
-  //
-  //         // if next goto action is in FW and we're in QC: setup yaw and
-  //         // actually over shoot the point so you dont slow down before
-  //         trying to transition if (desired_mode == FlightMode::QC &&
-  //             node.command_deque[0]->get_desired_fm().value() ==
-  //                 FlightMode::FW) {
-  //
-  //           double overshoot_scale = 1.1;
-  //           pos.north_m = start_n + (target_n - start_n) * overshoot_scale;
-  //           pos.east_m = start_e + (target_e - start_e) * overshoot_scale;
-  //
-  //           double next_n, next_e, d_n, d_e;
-  //           GoToTuple next_goto =
-  //               node.command_deque[0]->get_goto_tuple().value();
-  //           next_n = next_goto.n;
-  //           next_e = next_goto.e;
-  //
-  //           d_n = next_n - target_n;
-  //           d_e = next_e - target_e;
-  //
-  //           double angle = atan2(d_e, d_n) * 180. / M_PI;
-  //           // atan2 gives -180 to 180 while we want 0 to 360 for yaw control
-  //           if (angle < 0)
-  //             angle = 360. + angle;
-  //
-  //           pos.yaw_deg = angle;
-  //           RCLCPP_INFO(node.get_logger(),
-  //                       "next point is in FW, we're in QC, it is at (%f,%f) "
-  //                       "from current target, yaw needed is %f",
-  //                       d_n, d_e, pos.yaw_deg);
-  //         }
-  //       }
-  //
-  //       auto res = node.mavsdk_offboard->set_position_ned(pos);
-  //       if (res == mavsdk::Offboard::Result::Success)
-  //         goto_order_sent = true;
-  //     }
-  //
-  //     // if within tolerance and in the desired mode, you're done !
-  //     if ((((desired_mode == FlightMode::QC && dist_from_target < 1.) ||
-  //           (desired_mode == FlightMode::FW && dist_from_target < 10.))) &&
-  //         node.state.vtol_state == desired_mode) {
-  //       // if (node.command_deque.size() == ) {
-  //       //   node.mavsdk_offboard->stop();
-  //       // }
-  //       return true;
-  //     }
-  //     return false;
-  //   }
-  //
-  //   ~GoTo() {}
-  //
-  //   double start_n, start_e, start_d;
-  //   double target_n, target_e, target_d, target_vn, target_ve, target_vd;
-  //   FlightMode desired_mode;
-  //
-  //   // toggles to not overwhelm the flight controller
-  //   bool start_pos_recorded = false;
-  //   bool transtion_order_sent = false;
-  //   bool goto_order_sent = false;
-  // };
+  struct CommandQueue {
 
-  // TODO: DO REST OF COMMAND CLASSES
+    CommandQueue() {}
+
+    int size() { return command_queue.size(); }
+
+    Command *operator[](std::size_t idx) { return command_queue[idx].get(); }
+
+    void push_back(std::unique_ptr<Command> c) {
+      command_queue.push_back(std::move(c));
+    }
+
+    void enqueue_command(std::unique_ptr<Command> c) {
+      if (size() > 0)
+        command_queue[size() - 1]->mutate(c.get());
+      push_back(std::move(c));
+    }
+
+    void pop_front() { command_queue.pop_front(); }
+
+  private:
+    std::deque<std::unique_ptr<Command>> command_queue = {};
+  };
 
   void make_world_frame() {
     geometry_msgs::msg::TransformStamped t;
@@ -511,11 +463,9 @@ private:
       break;
     case custom_msgs::msg::Action::GOTO_ACTION:
       if (action.vtol_config == custom_msgs::msg::Action::IN_FW) {
-        // TODO: this
-        RCLCPP_INFO(this->get_logger(), "NOT IMPLEMENTED YET");
-        return;
-      }
-      if (action.vtol_config == custom_msgs::msg::Action::IN_QC) {
+        com = std::make_unique<OffboardNode::GoToFW>(action.n, action.e,
+                                                     action.d);
+      } else if (action.vtol_config == custom_msgs::msg::Action::IN_QC) {
         com = std::make_unique<OffboardNode::GoToQC>(action.n, action.e,
                                                      action.d);
       }
@@ -527,7 +477,7 @@ private:
       com = std::make_unique<OffboardNode::TakeOff>(action.takeoff_height);
       break;
     }
-    command_deque.push_back(std::move(com));
+    command_deque.enqueue_command(std::move(com));
   }
 
   void cancel_command_topic_callback(const std_msgs::msg::Empty &em) {
@@ -584,7 +534,7 @@ private:
   std::unique_ptr<mavsdk::Offboard> mavsdk_offboard;
 
   // Command queue
-  std::deque<std::unique_ptr<OffboardNode::Command>> command_deque = {};
+  CommandQueue command_deque = {};
   bool want_to_cancel = false;
 };
 
