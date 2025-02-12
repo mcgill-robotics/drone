@@ -42,9 +42,12 @@ std::string string_format(const std::string &format, Args... args) {
                      buf.get() + size - 1); // We don't want the '\0' inside
 }
 
+/* Assumes both current angle and target angle are positive
+ * */
 double smallestAngle(double currentAngle, double targetAngle) {
-  double diff = fmod((targetAngle - currentAngle), 360.);
-  return diff <= 180. ? diff : -(360. - diff);
+  double bigger = std::max(currentAngle, targetAngle);
+  double smaller = std::min(currentAngle, targetAngle);
+  return std::min(bigger - smaller, smaller + 360. - bigger);
 }
 
 class OffboardNode : public rclcpp::Node {
@@ -288,8 +291,9 @@ private:
     }
 
     virtual std::string get_description() override {
-      return string_format("Going to %lf, %lf, %lf in FW", target_n, target_e,
-                           target_d);
+      return string_format(
+          "Going to %lf, %lf, %lf in FW (FW Type: %s | FW Stage %s)",
+          target_n, target_e, target_d, get_type_str().c_str(), get_lifetime_str().c_str());
     }
 
     virtual void mutate(Command *new_command) override {
@@ -353,6 +357,16 @@ private:
      * A task should only be complete once its done with its STOP stage.
      * */
     enum class LifetimeStage { BEGIN, ONGOING, STOP };
+    std::string get_lifetime_str() {
+      switch (current_stage) {
+      case LifetimeStage::BEGIN:
+        return "BEGIN";
+      case LifetimeStage::ONGOING:
+        return "ONGOING";
+      case LifetimeStage::STOP:
+        return "STOP";
+      }
+    }
 
     /* A function which alligns the heading of the drone with the target
      * destination returns true when at the appropriate heading only.
@@ -364,13 +378,14 @@ private:
       desired_heading =
           (desired_heading >= 0) ? desired_heading : 360. + desired_heading;
       double current_heading = node.state.yaw_deg;
-      if (smallestAngle(desired_heading, current_heading) < 10.0) {
+      std::cout << "Desired : " << desired_heading << ", Current : " << current_heading << std::endl;
+      if (smallestAngle(desired_heading, current_heading) < 5.0) {
         return true;
       }
 
       if (!yaw_fixing_command_sent) {
         yaw_fixing_command_sent =
-            send_offboard_goto(node, NAN, NAN, NAN, desired_heading);
+            send_offboard_goto(node, node.state.n, node.state.e, node.state.d, desired_heading);
       }
 
       return false;
@@ -410,14 +425,23 @@ private:
       // BOOL -> RETURN TRUE WHEN IN QC AND REACHED
       switch (current_stage) {
       case LifetimeStage::BEGIN:
+        if (fix_heading(node))
+          current_stage = LifetimeStage::ONGOING;
+        return false;
         break;
       case LifetimeStage::ONGOING:
+        if (send_waypoint_transition(node))
+          current_stage = LifetimeStage::STOP;
+        return false;
         break;
       case LifetimeStage::STOP:
-        // if () return true;
+        if (is_within_from_target(node, 50.) && !untransition_command_sent)
+          untransition_command_sent = send_untransition(node);
+        if (is_within_from_target(node, 5.) && untransition_command_sent)
+          return true;
+        return false;
         break;
       }
-      return false;
     }
 
     // TODO: FINISH DOING THIS
@@ -476,6 +500,7 @@ private:
     bool yaw_fixing_command_sent = false;
     bool goto_command_sent = false;
     bool transition_command_sent = false;
+    bool untransition_command_sent = false;
   };
 
   // TODO: IMPLEMENT HOLD

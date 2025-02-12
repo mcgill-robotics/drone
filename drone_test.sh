@@ -8,9 +8,9 @@ ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n:
 
 ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
 
-ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
-ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
-ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
+# ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
+# ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
+# ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 0}"
 
 ros2 topic pub -t 1 /enqueue_command custom_msgs/msg/Action "{action_type: 1, n: 0., e: 0., d: -10., vn: 1., ve: 1., vd: 1., vtol_config: 1}"
 
