@@ -4,6 +4,8 @@
 #include <deque>
 #include <functional>
 #include <iterator>
+#include <math.h>
+#include <mavlink/common/mavlink.h>
 #include <memory>
 #include <optional>
 #include <rclcpp/logging.hpp>
@@ -25,6 +27,7 @@
 
 using namespace std::chrono_literals;
 
+// UTILITY FUNCTIONS
 template <typename... Args>
 std::string string_format(const std::string &format, Args... args) {
   int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) +
@@ -39,14 +42,20 @@ std::string string_format(const std::string &format, Args... args) {
                      buf.get() + size - 1); // We don't want the '\0' inside
 }
 
+double smallestAngle(double currentAngle, double targetAngle) {
+  double diff = fmod((targetAngle - currentAngle), 360.);
+  return diff <= 180. ? diff : -(360. - diff);
+}
+
 class OffboardNode : public rclcpp::Node {
 public:
+  // TODO: Add parameters as parameters
   OffboardNode() : Node("offboard_controller"), qc_tolerance(1.) {
 
     // tf2 stuff
     tf_world_broadcaster =
         std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
-    this->make_world_frame();
+    this->setup_world_frame();
 
     tf_drone_broadcaster =
         std::make_unique<tf2_ros::TransformBroadcaster>(*this);
@@ -90,10 +99,11 @@ public:
         std::bind(&OffboardNode::enqueue_topic_callback, this,
                   std::placeholders::_1));
 
-    pop_sub = this->create_subscription<std_msgs::msg::Empty>(
-        "cancel_command", 10,
-        std::bind(&OffboardNode::cancel_command_topic_callback, this,
-                  std::placeholders::_1));
+    // TODO: DECOMMISSIONED FOR NOW, COME BACK TO THIS LATER
+    // pop_sub = this->create_subscription<std_msgs::msg::Empty>(
+    //     "cancel_command", 10,
+    //     std::bind(&OffboardNode::cancel_command_topic_callback, this,
+    //               std::placeholders::_1));
 
     this->timer_ = this->create_wall_timer(
         100ms, std::bind(&OffboardNode::monitoring_callback, this));
@@ -103,22 +113,68 @@ public:
   }
 
 private:
-  // This only makes sense in the context of the action queue
+  /* Objects that represent a command. This defines a common interface and has
+   * utility functions
+   * */
   struct Command {
     // both perform tick and cancel_command return true if they are done, false
     // otherwise
+
+    /* Performs one tick of the command. This is for the command to be
+     * non-blocking
+     * */
     virtual bool perform_tick(OffboardNode &on) = 0;
+    /* This is also one tick for the same reason as above, but is supposed to
+     * handel cancelations properly. FOR NOW, DO NOT DO THIS (OUT OF SCOPE)
+     * */
     virtual bool cancel_command(OffboardNode &on) {
       RCLCPP_INFO(on.get_logger(), "This command is not cancelable");
       return perform_tick(on);
     }
+    /* Returns a string that describes the command. For debugging purposes.
+     * */
     virtual std::string get_description() = 0;
 
+    /* Function that transforms the this command to adapt to the new_command
+     *  This is really only relevant for FW commands as they need to change
+     * behavour if the new_command is also FW (ex: need to stay in FW and not
+     * transition after the goal is reached)
+     * */
     virtual void mutate(Command *new_command) {}
-    virtual bool is_fw() { return false; }
     virtual ~Command() {}
+
+  protected:
+    /* Sends a way point command, over 2 ticks if not in offboard mode, over 1
+     * tick otherwise. returns true when sending is done (not when reached
+     * destination) If you don't want control over a parameter (like yaw), set
+     * it to NAN
+     * */
+    bool send_offboard_goto(OffboardNode &node, double north, double east,
+                            double down, double yaw) {
+      mavsdk::Offboard::PositionNedYaw pos;
+      pos.north_m = north;
+      pos.east_m = east;
+      pos.down_m = down;
+      pos.yaw_deg = yaw;
+
+      auto result = node.mavsdk_offboard->set_position_ned(pos);
+      if (node.state.flight_mode != custom_msgs::msg::DroneState::OFFBOARD) {
+        node.mavsdk_offboard->start();
+        return false;
+      }
+      return true;
+    }
+
+    double distance_from_target(OffboardNode &node, double target_n,
+                                double target_e, double target_d) {
+      return sqrt(pow((node.state.n - target_n), 2) +
+                  pow((node.state.e - target_e), 2) +
+                  pow((node.state.d - target_d), 2));
+    }
   };
 
+  /* Command responsible for taking off to a certain height.
+   * */
   struct TakeOff : Command {
     TakeOff(double height) : target_height(height) {}
 
@@ -150,6 +206,8 @@ private:
     double target_height;
   };
 
+  /* Command responsible for landing.
+   * */
   struct Land : Command {
 
     Land() {}
@@ -171,29 +229,18 @@ private:
     ~Land() {}
   };
 
+  /* Command responsible for going to a destination in QC mode.
+   * */
   struct GoToQC : Command {
     GoToQC(double n, double e, double d)
         : target_n(n), target_e(e), target_d(d) {}
 
     virtual bool perform_tick(OffboardNode &node) override {
-      double dist_from_target = sqrt(pow((node.state.n - target_n), 2) +
-                                     pow((node.state.e - target_e), 2) +
-                                     pow((node.state.d - target_d), 2));
-
+      double dist_from_target =
+          distance_from_target(node, target_n, target_e, target_d);
       if (dist_from_target >= node.qc_tolerance && !goto_command_sent) {
-        mavsdk::Offboard::PositionNedYaw pos;
-        pos.north_m = target_n;
-        pos.east_m = target_e;
-        pos.down_m = target_d;
-        pos.yaw_deg = NAN;
-
-        auto result = node.mavsdk_offboard->set_position_ned(pos);
-        if (result == mavsdk::Offboard::Result::Success)
-          goto_command_sent = true;
-      }
-      if (node.state.flight_mode != custom_msgs::msg::DroneState::OFFBOARD) {
-        node.mavsdk_offboard->start();
-        return false;
+        goto_command_sent =
+            send_offboard_goto(node, target_n, target_e, target_d, NAN);
       }
 
       return dist_from_target < node.qc_tolerance;
@@ -211,70 +258,231 @@ private:
     bool goto_command_sent = false;
   };
 
+  /* Command responsible for going to a destination in FW mode. This needs to
+   * adapt it's behabiour w.r.t. the next command. All new commands start as
+   * SOLE (alone). They then transition to the appropriate type of FW Command if
+   * need to.
+   * */
   struct GoToFW : Command {
 
     GoToFW(double n, double e, double d)
         : target_n(n), target_e(e), target_d(d) {}
 
-    // TODO: Do this
     virtual bool perform_tick(OffboardNode &node) override {
-      // IF PREV NOT FW:
-      // FIX HEADING
-      // TRANSITION
-      // START HEADING THERE
-      // IF NEXT COMMAND IS ALSO FW, RETURN TRUE WHEN REACHED AND PASS THAT INFO
-      // INTO NEXT COMMAND ELSE, PRE-UNTRANSITION THEN RETURN TRUE WHEN REACHED
-      RCLCPP_INFO(node.get_logger(), "FW TYPE: %s", get_type_str().c_str());
-      return true;
+      bool res;
+      switch (fw_command_type) {
+      case TypeFW::SOLE:
+        res = sole_flight(node);
+        break;
+      case TypeFW::STARTING_FW:
+        res = starting_fw_flight(node);
+        break;
+      case TypeFW::MIDDLE_FW:
+        res = middle_fw_flight(node);
+        break;
+      case TypeFW::END_FW:
+        res = end_fw_flight(node);
+        break;
+      }
+      return res;
     }
-
-    // TODO: Fix cancel command for FW
-    virtual bool cancel_command(OffboardNode &node) override { return true; }
 
     virtual std::string get_description() override {
       return string_format("Going to %lf, %lf, %lf in FW", target_n, target_e,
                            target_d);
     }
+
     virtual void mutate(Command *new_command) override {
-      if (new_command->is_fw()) {
-        static_cast<GoToFW *>(new_command)->type = END;
-        switch (type) {
-        case SOLE:
-          type = START;
+
+      GoToFW *command_ptr = dynamic_cast<GoToFW *>(new_command);
+      if (command_ptr) {
+        command_ptr->adapt();
+        switch (fw_command_type) {
+        case TypeFW::SOLE:
+          fw_command_type = TypeFW::STARTING_FW;
           break;
-        case START:
+        case TypeFW::STARTING_FW:
+          std::cout << "THIS COMMAD IS STARTING_FW AND AT THE END OF THE "
+                       "QUEUE, IMPOSSIBLE!! EXITING..."
+                    << std::endl;
+          exit(2);
           break;
-        case MIDDLE:
+        case TypeFW::MIDDLE_FW:
+          std::cout << "THIS COMMAD IS MIDDLE_FW AND AT THE END OF THE "
+                       "QUEUE, IMPOSSIBLE!! EXITING..."
+                    << std::endl;
+          exit(3);
           break;
-        case END:
-          type = MIDDLE;
+        case TypeFW::END_FW:
+          fw_command_type = TypeFW::MIDDLE_FW;
           break;
         }
       }
     }
 
-    virtual bool is_fw() override { return true; }
-
   private:
-    enum TypeFW { SOLE = 1, START = 2, MIDDLE = 3, END = 4 };
+    /* Describes the different types of FW commands in a command. Very much like
+     * POS Tagging START_FW: Start of a sequence of FW commands, responsible for
+     * starting the sequence (fix heading and transition) and reaching the
+     * destination. MIDDLE_FW: Middle of a sequence of FW commands, responsible
+     * for stopping when destination is reached. END_FW: End of a sequence of FW
+     * commands, responsible for untransitionning slightly before reaching the
+     * destination, then stop when destination is reached. SOLE: Unique FW
+     * command, responsible for both parts of STARTING_FW behaviour and END_FW
+     * behaviour at the start and end respectively.
+     * */
+    enum class TypeFW { SOLE, STARTING_FW, MIDDLE_FW, END_FW };
     std::string get_type_str() {
-      switch (type) {
-      case SOLE:
+      switch (fw_command_type) {
+      case TypeFW::SOLE:
         return "SOLE";
-      case START:
+      case TypeFW::STARTING_FW:
         return "START";
-      case MIDDLE:
+      case TypeFW::MIDDLE_FW:
         return "MIDDLE";
-      case END:
+      case TypeFW::END_FW:
         return "END";
       }
     }
-    TypeFW type = TypeFW::SOLE;
+    /* Make this command the end of a FW sequence, only called if previous
+     * command is FW and gets mutated
+     * */
+    void adapt() { fw_command_type = TypeFW::END_FW; }
+
+    /* Behaviour needs to once again change w.r.t. what's been done already
+     * A task should only be complete once its done with its STOP stage.
+     * */
+    enum class LifetimeStage { BEGIN, ONGOING, STOP };
+
+    /* A function which alligns the heading of the drone with the target
+     * destination returns true when at the appropriate heading only.
+     * */
+    bool fix_heading(OffboardNode &node) {
+      double desired_heading =
+          std::atan2(target_e - node.state.e, target_n - node.state.n) * 180. /
+          M_PI;
+      desired_heading =
+          (desired_heading >= 0) ? desired_heading : 360. + desired_heading;
+      double current_heading = node.state.yaw_deg;
+      if (smallestAngle(desired_heading, current_heading) < 10.0) {
+        return true;
+      }
+
+      if (!yaw_fixing_command_sent) {
+        yaw_fixing_command_sent =
+            send_offboard_goto(node, NAN, NAN, NAN, desired_heading);
+      }
+
+      return false;
+    }
+
+    /* A function which sends the waypoint and transition commands. Returns true
+     * when those commands are successfully sent
+     * */
+    bool send_waypoint_transition(OffboardNode &node) {
+      if (!goto_command_sent) {
+        goto_command_sent =
+            send_offboard_goto(node, target_n, target_e, target_d, NAN);
+      }
+      if (!transition_command_sent) {
+        auto res = node.mavsdk_action->transition_to_fixedwing();
+        transition_command_sent = (res == mavsdk::Action::Result::Success);
+      }
+      return goto_command_sent && transition_command_sent;
+    }
+
+    /* A function which sends a untransition command. Returns true when the
+     * command is successful.
+     * */
+    bool send_untransition(OffboardNode &node) {
+      return node.mavsdk_action->transition_to_multicopter() ==
+             mavsdk::Action::Result::Success;
+    }
+
+    bool is_within_from_target(OffboardNode &node, double meters) {
+      return distance_from_target(node, target_n, target_e, target_d) < meters;
+    }
+
+    bool sole_flight(OffboardNode &node) {
+      // FIX HEADING
+      // ONCE FIXED SET WAYPOINT THEN TRANSITION
+      // THEN PRE-UNTRANSITION BEFORE REACING END
+      // BOOL -> RETURN TRUE WHEN IN QC AND REACHED
+      switch (current_stage) {
+      case LifetimeStage::BEGIN:
+        break;
+      case LifetimeStage::ONGOING:
+        break;
+      case LifetimeStage::STOP:
+        // if () return true;
+        break;
+      }
+      return false;
+    }
+
+    // TODO: FINISH DOING THIS
+    bool starting_fw_flight(OffboardNode &node) {
+      // FIX HEADING
+      // ONCE FIXED SET WAYPOINT THEN TRANSITION
+      // BOOL -> RETURN TRUE WHEN REACHED
+      switch (current_stage) {
+      case LifetimeStage::BEGIN:
+        break;
+      case LifetimeStage::ONGOING:
+        break;
+      case LifetimeStage::STOP:
+        // if () return true;
+        break;
+      }
+      return false;
+    }
+
+    bool middle_fw_flight(OffboardNode &node) {
+      // SET WAYPOINT
+      // BOOL -> RETURN TRUE WHEN REACHED
+      switch (current_stage) {
+      case LifetimeStage::BEGIN:
+        break;
+      case LifetimeStage::ONGOING:
+        break;
+      case LifetimeStage::STOP:
+        // if () return true;
+        break;
+      }
+      return false;
+    }
+
+    bool end_fw_flight(OffboardNode &node) {
+      // SET WAYPOINT
+      // THEN PRE-UNTRANSITION BEFORE REACING END
+      // BOOL -> RETURN TRUE WHEN IN QC AND REACHED
+      switch (current_stage) {
+      case LifetimeStage::BEGIN:
+        break;
+      case LifetimeStage::ONGOING:
+        break;
+      case LifetimeStage::STOP:
+        // if () return true;
+        break;
+      }
+      return false;
+    }
+
+    TypeFW fw_command_type = TypeFW::SOLE;
+    LifetimeStage current_stage = LifetimeStage::BEGIN;
     double target_n, target_e, target_d;
+
+    // FLAGS
+    bool yaw_fixing_command_sent = false;
+    bool goto_command_sent = false;
+    bool transition_command_sent = false;
   };
 
+  // TODO: IMPLEMENT HOLD
   struct Hold : Command {};
 
+  /* A queue composed object, needed to automatically call mutate on append.
+   * */
   struct CommandQueue {
 
     CommandQueue() {}
@@ -299,7 +507,9 @@ private:
     std::deque<std::unique_ptr<Command>> command_queue = {};
   };
 
-  void make_world_frame() {
+  /* Sets up the world_frame object (used by RViz).
+   * */
+  void setup_world_frame() {
     geometry_msgs::msg::TransformStamped t;
     t.header.stamp = this->get_clock()->now();
     t.header.frame_id = "world";
@@ -317,6 +527,9 @@ private:
     this->tf_world_broadcaster->sendTransform(t);
   }
 
+  /* Sets up the various mavsdk callbacks necessary to update the state and
+   * world_frame.
+   * */
   void setup_monitoring() {
 
     state.header.frame_id = "world";
@@ -381,6 +594,13 @@ private:
           transform.transform.rotation.w = quat.w;
         });
 
+    mavsdk_telem->subscribe_attitude_euler(
+        [this](mavsdk::Telemetry::EulerAngle angles) {
+          state.roll_deg = angles.roll_deg;
+          state.pitch_deg = angles.pitch_deg;
+          state.yaw_deg = angles.yaw_deg;
+        });
+
     mavsdk_telem->subscribe_attitude_angular_velocity_body(
         [this](mavsdk::Telemetry::AngularVelocityBody angular_vel) {
           state.roll_rad_s = angular_vel.roll_rad_s;
@@ -440,6 +660,8 @@ private:
         });
   }
 
+  /* Callback to publish the state and world_frame
+   * */
   void monitoring_callback() {
     state.header.stamp = this->get_clock()->now();
     transform.header.stamp = this->get_clock()->now();
@@ -453,6 +675,8 @@ private:
     this->monitoring_pub->publish(state);
   }
 
+  /* Callback to enqueue a new topic in the topic queue.
+   * */
   // TODO: DO THIS
   void enqueue_topic_callback(const custom_msgs::msg::Action &action) {
     std::unique_ptr<OffboardNode::Command> com;
@@ -476,18 +700,23 @@ private:
     case custom_msgs::msg::Action::TAKEOFF_ACTION:
       com = std::make_unique<OffboardNode::TakeOff>(action.takeoff_height);
       break;
+    default:
+      std::cout << "ACTION TYPE INVALID!! EXITING..." << std::endl;
+      exit(1);
+      break;
     }
     command_deque.enqueue_command(std::move(com));
   }
 
-  void cancel_command_topic_callback(const std_msgs::msg::Empty &em) {
-    if (command_deque.size() > 0)
-      want_to_cancel = true;
-  }
+  // TODO: DECOMMISIONED, COME BACK TO THIS LATER
+  // void cancel_command_topic_callback(const std_msgs::msg::Empty &em) {
+  //   if (command_deque.size() > 0)
+  //     want_to_cancel = true;
+  // }
 
+  /* Responsible for running one tick of the top command.
+   * */
   void command_queue_callback() {
-    // RCLCPP_INFO(this->get_logger(), "Command queue has size %d",
-    //             command_deque.size());
     if (command_deque.size() == 0) {
       if (state.flight_mode == custom_msgs::msg::DroneState::OFFBOARD) {
         mavsdk_offboard->stop();
@@ -500,11 +729,12 @@ private:
       // }
       return;
     }
-    bool is_done = (want_to_cancel) ? command_deque[0]->cancel_command(*this)
-                                    : command_deque[0]->perform_tick(*this);
+    // bool is_done = (want_to_cancel) ? command_deque[0]->cancel_command(*this)
+    //                                 : command_deque[0]->perform_tick(*this);
 
+    bool is_done = command_deque[0]->perform_tick(*this);
     if (is_done) {
-      want_to_cancel = false;
+      // want_to_cancel = false;
       command_deque.pop_front();
     }
   }
@@ -535,7 +765,7 @@ private:
 
   // Command queue
   CommandQueue command_deque = {};
-  bool want_to_cancel = false;
+  // bool want_to_cancel = false;
 };
 
 int main(int argc, char *argv[]) {

@@ -58,6 +58,11 @@ float64 y
 float64 z
 float64 w
 
+# this is also the attitude, as roll, pitch and yaw
+float64 roll_deg
+float64 pitch_deg
+float64 yaw_deg
+
 # this is the angular velocity (refer to)[https://mariogc.com/post/angular-velocity-quaternions/]
 float64 roll_rad_s
 float64 pitch_rad_s
