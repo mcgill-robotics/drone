@@ -42,7 +42,7 @@ std::string string_format(const std::string &format, Args... args) {
                      buf.get() + size - 1); // We don't want the '\0' inside
 }
 
-/* Assumes both current angle and target angle are positive
+/* Returns the smallest angle between 2 angles, in degrees.
  * */
 double smallestAngle(double currentAngle, double targetAngle) {
   double bigger = std::max(currentAngle, targetAngle);
@@ -292,8 +292,9 @@ private:
 
     virtual std::string get_description() override {
       return string_format(
-          "Going to %lf, %lf, %lf in FW (FW Type: %s | FW Stage %s)",
-          target_n, target_e, target_d, get_type_str().c_str(), get_lifetime_str().c_str());
+          "Going to %lf, %lf, %lf in FW (FW Type: %s | FW Stage %s)", target_n,
+          target_e, target_d, get_type_str().c_str(),
+          get_lifetime_str().c_str());
     }
 
     virtual void mutate(Command *new_command) override {
@@ -378,27 +379,33 @@ private:
       desired_heading =
           (desired_heading >= 0) ? desired_heading : 360. + desired_heading;
       double current_heading = node.state.yaw_deg;
-      std::cout << "Desired : " << desired_heading << ", Current : " << current_heading << std::endl;
+      std::cout << "Desired : " << desired_heading
+                << ", Current : " << current_heading << std::endl;
       if (smallestAngle(desired_heading, current_heading) < 5.0) {
         return true;
       }
 
       if (!yaw_fixing_command_sent) {
-        yaw_fixing_command_sent =
-            send_offboard_goto(node, node.state.n, node.state.e, node.state.d, desired_heading);
+        yaw_fixing_command_sent = send_offboard_goto(
+            node, node.state.n, node.state.e, node.state.d, desired_heading);
       }
 
       return false;
+    }
+
+    bool send_waypoint(OffboardNode &node) {
+      if (!goto_command_sent) {
+        goto_command_sent =
+            send_offboard_goto(node, target_n, target_e, target_d, NAN);
+      }
+      return goto_command_sent;
     }
 
     /* A function which sends the waypoint and transition commands. Returns true
      * when those commands are successfully sent
      * */
     bool send_waypoint_transition(OffboardNode &node) {
-      if (!goto_command_sent) {
-        goto_command_sent =
-            send_offboard_goto(node, target_n, target_e, target_d, NAN);
-      }
+      goto_command_sent = send_waypoint(node);
       if (!transition_command_sent) {
         auto res = node.mavsdk_action->transition_to_fixedwing();
         transition_command_sent = (res == mavsdk::Action::Result::Success);
@@ -444,21 +451,28 @@ private:
       }
     }
 
-    // TODO: FINISH DOING THIS
     bool starting_fw_flight(OffboardNode &node) {
       // FIX HEADING
       // ONCE FIXED SET WAYPOINT THEN TRANSITION
       // BOOL -> RETURN TRUE WHEN REACHED
       switch (current_stage) {
       case LifetimeStage::BEGIN:
+        if (fix_heading(node))
+          current_stage = LifetimeStage::ONGOING;
+        return false;
         break;
       case LifetimeStage::ONGOING:
+        if (send_waypoint_transition(node))
+          current_stage = LifetimeStage::STOP;
+        return false;
         break;
       case LifetimeStage::STOP:
         // if () return true;
+        if (is_within_from_target(node, 5.))
+          return true;
+        return false;
         break;
       }
-      return false;
     }
 
     bool middle_fw_flight(OffboardNode &node) {
@@ -466,11 +480,19 @@ private:
       // BOOL -> RETURN TRUE WHEN REACHED
       switch (current_stage) {
       case LifetimeStage::BEGIN:
+        current_stage = LifetimeStage::ONGOING;
+        return false;
         break;
       case LifetimeStage::ONGOING:
+        if (send_waypoint(node))
+          current_stage = LifetimeStage::STOP;
+        return false;
         break;
       case LifetimeStage::STOP:
         // if () return true;
+        if (is_within_from_target(node, 5.))
+          return true;
+        return false;
         break;
       }
       return false;
@@ -482,11 +504,20 @@ private:
       // BOOL -> RETURN TRUE WHEN IN QC AND REACHED
       switch (current_stage) {
       case LifetimeStage::BEGIN:
+        current_stage = LifetimeStage::ONGOING;
+        return false;
         break;
       case LifetimeStage::ONGOING:
+        if (send_waypoint(node))
+          current_stage = LifetimeStage::STOP;
+        return false;
         break;
       case LifetimeStage::STOP:
-        // if () return true;
+        if (is_within_from_target(node, 50.) && !untransition_command_sent)
+          untransition_command_sent = send_untransition(node);
+        if (is_within_from_target(node, 5.) && untransition_command_sent)
+          return true;
+        return false;
         break;
       }
       return false;
