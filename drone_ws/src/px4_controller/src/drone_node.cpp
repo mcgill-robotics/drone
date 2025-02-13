@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdio>
 #include <custom_msgs/msg/detail/action__struct.hpp>
 #include <custom_msgs/msg/detail/drone_state__struct.hpp>
 #include <deque>
@@ -406,9 +407,14 @@ private:
      * */
     bool send_waypoint_transition(OffboardNode &node) {
       goto_command_sent = send_waypoint(node);
-      if (!transition_command_sent) {
+      double current_speed =
+          sqrt(pow(node.state.vn, 2) + pow(node.state.ve, 2));
+      if (current_speed >= 5. && goto_command_sent &&
+          !transition_command_sent) {
         auto res = node.mavsdk_action->transition_to_fixedwing();
-        transition_command_sent = (res == mavsdk::Action::Result::Success);
+        transition_command_sent =
+            (res == mavsdk::Action::Result::Success) &&
+            node.state.vtol_state == custom_msgs::msg::DroneState::FW;
       }
       return goto_command_sent && transition_command_sent;
     }
@@ -442,8 +448,11 @@ private:
         return false;
         break;
       case LifetimeStage::STOP:
-        if (is_within_from_target(node, 50.) && !untransition_command_sent)
+        if (is_within_from_target(node, 50.) && !untransition_command_sent) {
           untransition_command_sent = send_untransition(node);
+          goto_command_sent = false;
+          goto_command_sent = send_waypoint(node);
+        }
         if (is_within_from_target(node, 5.) && untransition_command_sent)
           return true;
         return false;
@@ -513,8 +522,11 @@ private:
         return false;
         break;
       case LifetimeStage::STOP:
-        if (is_within_from_target(node, 50.) && !untransition_command_sent)
+        if (is_within_from_target(node, 50.) && !untransition_command_sent) {
           untransition_command_sent = send_untransition(node);
+          goto_command_sent = false;
+          goto_command_sent = send_waypoint(node);
+        }
         if (is_within_from_target(node, 5.) && untransition_command_sent)
           return true;
         return false;
