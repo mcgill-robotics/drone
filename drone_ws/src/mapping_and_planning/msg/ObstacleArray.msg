@@ -1,1 +1,0 @@
-mapping_and_planning/Obstacle[] obstacles
