@@ -11,6 +11,14 @@ find_package(rclcpp REQUIRED)
 find_package(octomap REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(mapping_and_planning REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Obstacle.msg"
+  "msg/ObstacleArray.msg"
+ )
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -24,7 +32,7 @@ link_libraries(${OCTOMAP_LIBRARIES})
 
 
 target_link_libraries(map_n_plan  octomap Eigen3::Eigen)
-ament_target_dependencies(map_n_plan rclcpp std_msgs octomap)
+ament_target_dependencies(map_n_plan rclcpp std_msgs octomap geometry_msgs mapping_and_planning)
 
 target_include_directories(map_n_plan PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
