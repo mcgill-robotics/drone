@@ -1,0 +1,11 @@
+Model Information:
+* title:	Twin Bed 2K
+* source:	https://sketchfab.com/3d-models/twin-bed-2k-88be8ad75f274c7b8da4a54fef3aaac9
+* author:	Caxtor (https://sketchfab.com/caxtor)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Twin Bed 2K" (https://sketchfab.com/3d-models/twin-bed-2k-88be8ad75f274c7b8da4a54fef3aaac9) by Caxtor (https://sketchfab.com/caxtor) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

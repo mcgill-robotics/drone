@@ -1,0 +1,11 @@
+Model Information:
+* title:	Motorcycle
+* source:	https://sketchfab.com/3d-models/motorcycle-135b505f55bb4da0b82b8987a34443b2
+* author:	eriklys (https://sketchfab.com/eriklys)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Motorcycle" (https://sketchfab.com/3d-models/motorcycle-135b505f55bb4da0b82b8987a34443b2) by eriklys (https://sketchfab.com/eriklys) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
