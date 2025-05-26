@@ -3,7 +3,7 @@ import bpy_extras
 import importlib
 from math import pi
 import bpy
-from mathutils import Vector, Euler
+from mathutils import Vector
 import os
 import sys
 # import helpers.setup_helpers as helpers
@@ -35,7 +35,7 @@ OBJECTS_LABEL = [CAR, MANNEQUIN, MOTORCYCLE, AIRPLANE, BUS, BOAT, STOP_SIGN,
                  TENIS_RACKET, SUITCASE, SKIS]
 MAX_NUM_OBJECTS = len(OBJECTS_LABEL)
 # [train, val, test]
-NUM_INSTANCES_TO_GENERATE = [2, 5, 1]
+NUM_INSTANCES_TO_GENERATE = [1, 1, 1]
 MAX_NUM_ATTEMPTS = 5
 
 
@@ -144,6 +144,7 @@ def main():
     ground_view_width = helpers.setup_camera()
     helpers.setup_ground()
     helpers.setup_light()
+    helpers.setup_world_light()
     # Setup Objects
     objects: dict[str, helpers.ObjectBB] = {
         CAR: helpers.setup_car(),

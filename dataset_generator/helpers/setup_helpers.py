@@ -121,6 +121,20 @@ def setup_camera(height=30, lens=16, sensor_width=7):
     return (((height * 1000.) * (sensor_width)) / lens) / 1000.
 
 
+def setup_world_light():
+    world_node_tree = bpy.context.scene.world.node_tree
+    world_node_tree.nodes.clear()
+
+    world_background_node = world_node_tree.nodes.new(
+        type="ShaderNodeBackground")
+    world_output_node = world_node_tree.nodes.new(
+        type="ShaderNodeOutputWorld")
+    world_node_tree.links.new(
+        world_background_node.outputs["Background"],
+        world_output_node.inputs["Surface"])
+    world_background_node.inputs[1].default_value = 1.6
+
+
 def setup_light():
     light = bpy.data.lights["Light"]
     light.type = "SUN"
