@@ -14,7 +14,6 @@ dataset_dir = os.path.join(dir_name, "dataset")
 imgs_dir_post_fix = "images"
 labels_dir_post_fix = "labels"
 
-
 CAR = "car"
 MANNEQUIN = "mannequin"
 MOTORCYCLE = "motorcycle"
@@ -30,23 +29,23 @@ MATTRESS = "mattress"
 TENIS_RACKET = "tennis racket"
 SUITCASE = "suitcase"
 SKIS = "skis"
-OBJECTS_LABEL = [CAR, MANNEQUIN, MOTORCYCLE, AIRPLANE, BUS, BOAT, STOP_SIGN,
-                 SNOWBOARD, UMBRELLA, SOCCER, BASEBALL_BAT, MATTRESS,
-                 TENIS_RACKET, SUITCASE, SKIS]
+OBJECTS_LABEL = [
+    CAR, MANNEQUIN, MOTORCYCLE, AIRPLANE, BUS, BOAT, STOP_SIGN, SNOWBOARD,
+    UMBRELLA, SOCCER, BASEBALL_BAT, MATTRESS, TENIS_RACKET, SUITCASE, SKIS
+]
 MAX_NUM_OBJECTS = len(OBJECTS_LABEL)
 # [train, val, test]
-NUM_INSTANCES_TO_GENERATE = [1, 1, 1]
+NUM_INSTANCES_TO_GENERATE = [1000, 200, 200]
 MAX_NUM_ATTEMPTS = 5
 
 
 def generate_label(root_dir, instance_index, objs_and_aabbs):
-    labels_file = os.path.join(
-        root_dir, labels_dir_post_fix, f"{instance_index:05d}.txt")
+    labels_file = os.path.join(root_dir, labels_dir_post_fix,
+                               f"{instance_index:05d}.txt")
     with open(labels_file, "w") as f:
         for obj, bbox in objs_and_aabbs:
             string = f"{obj} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n"
-            f.write(string
-                    )
+            f.write(string)
 
 
 def get_world_aabb(obj, node_tree=None):
@@ -110,15 +109,20 @@ def map_to_camera_bbs(objs_and_bbs):
     labels = []
     for label, aabb in objs_and_bbs:
         labels.append(label)
-        bbox = [Vector([x, y, z]) for x in [aabb.min_x, aabb.max_x]
-                for y in [aabb.min_y, aabb.max_y] for z in [aabb.min_z, aabb.max_z]]
-        coords_2d = [bpy_extras.object_utils.world_to_camera_view(
-            scene, camera, corner) for corner in bbox]
+        bbox = [
+            Vector([x, y, z]) for x in [aabb.min_x, aabb.max_x]
+            for y in [aabb.min_y, aabb.max_y]
+            for z in [aabb.min_z, aabb.max_z]
+        ]
+        coords_2d = [
+            bpy_extras.object_utils.world_to_camera_view(
+                scene, camera, corner) for corner in bbox
+        ]
 
-        min_x = max(min(pt.x for pt in coords_2d), 0)
-        max_x = min(max(pt.x for pt in coords_2d), 1)
-        min_y = max(min(pt.y for pt in coords_2d), 0)
-        max_y = min(max(pt.y for pt in coords_2d), 1)
+        min_x = min(max(min(pt.x for pt in coords_2d), 0), 1)
+        max_x = max(min(max(pt.x for pt in coords_2d), 1), 0)
+        min_y = min(max(min(pt.y for pt in coords_2d), 0), 1)
+        max_y = max(min(max(pt.y for pt in coords_2d), 1), 0)
 
         x_center = (min_x + max_x) / 2
         y_center = 1 - (min_y + max_y) / 2  # flip Y
@@ -163,24 +167,36 @@ def main():
         SUITCASE: helpers.setup_suitcase(),
         SKIS: helpers.setup_skis()
     }
-    os.makedirs(dataset_dir,
-                exist_ok=True)
+    os.makedirs(dataset_dir, exist_ok=True)
+    print("Making Setup")
     setup_data_yml(objects)
     scene = bpy.context.scene
+    scene.cycles.device = 'GPU'
+    scene.render.compositor_device = 'GPU'
+    bpy.context.scene.cycles.use_adaptive_sampling = True
+    scene.cycles.adaptive_threshold = 0.5
+    scene.cycles.samples = 16
+    bpy.context.preferences.addons[
+        "cycles"].preferences.compute_device_type = "CUDA"
+    scene.render.engine = "CYCLES"
+    scene.render.use_persistent_data = True
     bpy.data.objects.remove(bpy.data.objects["Cube"])
+    print("Setup Done")
     for set_portion_index, num_samples in enumerate(NUM_INSTANCES_TO_GENERATE):
         portion = "train" if set_portion_index == 0 else "val" if set_portion_index == 1 else "test"
-        os.makedirs(os.path.join(dataset_dir, portion,
-                    imgs_dir_post_fix), exist_ok=True)
-        os.makedirs(os.path.join(dataset_dir, portion,
-                    labels_dir_post_fix), exist_ok=True)
-        for i in range(1, num_samples+1):
+        os.makedirs(os.path.join(dataset_dir, portion, imgs_dir_post_fix),
+                    exist_ok=True)
+        os.makedirs(os.path.join(dataset_dir, portion, labels_dir_post_fix),
+                    exist_ok=True)
+        for i in range(1, num_samples + 1):
             # Reset all objects
+            print(f"Making image {i} for {portion} set")
             for key in objects:
                 put_away(objects[key].obj)
 
-            scene.render.filepath = os.path.join(
-                dataset_dir, portion, imgs_dir_post_fix, f"{i:05d}.png")
+            scene.render.filepath = os.path.join(dataset_dir, portion,
+                                                 imgs_dir_post_fix,
+                                                 f"{i:05d}.png")
             objs_and_bbs = map_to_camera_bbs(
                 generate_image(objects, ground_view_width))
             generate_label(os.path.join(dataset_dir, portion), i, objs_and_bbs)
