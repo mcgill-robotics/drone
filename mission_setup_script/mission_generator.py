@@ -148,6 +148,20 @@ class MinimalPublisher:
         for entry in self.immutables_json["boundary"]:
             geofence_polygon.append([entry["latitude"], entry["longitude"]])
 
+        # Takeoff
+        # takeoff = {
+        #     "AMSLAltAboveTerrain": None,
+        #     "Altitude": 50,
+        #     "AltitudeMode": 1,
+        #     "autoContinue": True,
+        #     "command": 24,
+        #     "doJumpId": 1,
+        #     "frame": 3,
+        #     "params": [0, 0, None, None, None, None, 50],
+        #     "type": "SimpleItem"
+        # }
+        # objects.append(takeoff)
+
         # lap
         for entry in self.mutables_json["lap"]:
             objects.append(
@@ -167,6 +181,34 @@ class MinimalPublisher:
         objects.append(mapping_survey_object)
         objects.append(payload_survey_object)
 
+        # RTL
+        # rtl = {
+        #     "AMSLAltAboveTerrain": None,
+        #     "Altitude": 50,
+        #     "AltitudeMode": 1,
+        #     "autoContinue": True,
+        #     "command": 20,
+        #     "doJumpId": 1,
+        #     "frame": 3,
+        #     "params": [None, None, None, None, None, None, None],
+        #     "type": "SimpleItem"
+        # }
+        # objects.append(rtl)
+        #
+        # # Landing
+        # landing = {
+        #     "AMSLAltAboveTerrain": None,
+        #     "Altitude": 50,
+        #     "AltitudeMode": 1,
+        #     "autoContinue": True,
+        #     "command": 23,
+        #     "doJumpId": 1,
+        #     "frame": 3,
+        #     "params": [0, 0.5, 0, 0, 0, 0, 0.],
+        #     "type": "SimpleItem"
+        # }
+        # objects.append(landing)
+        #
         # Remember to publish to /start topic to start the mission
         with open(
                 os.path.join(os.path.dirname(__file__), "generated_plan.plan"),
