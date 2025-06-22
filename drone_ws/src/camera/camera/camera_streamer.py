@@ -6,8 +6,8 @@ import cv2
 import numpy as np
 import os
 
-# TCP_IP = "192.168.144.134"
-TCP_IP = "localhost"
+TCP_IP = "192.168.144.134"
+# TCP_IP = "localhost"
 TCP_PORT = 8080
 
 
@@ -16,11 +16,10 @@ class MinimalPublisher(Node):
     def __init__(self):
         super().__init__('dummy_computer_vision')
 
-        # self.cap = cv2.VideoCapture(
-        #     "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),width=1920,height=1080,framerate=60/1 ! nvvidconv ! appsink",
-        #     cv2.CAP_GSTREAMER)
+        self.cap = cv2.VideoCapture(
+            "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),width=1920,height=1080,framerate=60/1 ! nvvidconv ! appsink",
+            cv2.CAP_GSTREAMER)
 
-        self.cap = cv2.VideoCapture(0)
         if (self.cap.isOpened()):
             print("The camera is successfully opened")
         else:
@@ -30,7 +29,7 @@ class MinimalPublisher(Node):
         # Camera feed
         # self.image_publisher = self.create_publisher(Image, "/video_feed", 10)
         # self.bridge = CvBridge()
-        timer_period2 = 1.
+        timer_period2 = 10.
         self.socket = socket.socket()
         self.socket.connect((TCP_IP, TCP_PORT))
         self.timer = self.create_timer(timer_period2, self.passive_feed_pub)
@@ -40,7 +39,7 @@ class MinimalPublisher(Node):
         #     self.image_publisher.publish(
         #         self.bridge.cv2_to_imgmsg(frame, encoding="passthrough"))
         # frame = cv2.resize(frame, (1280, 720))
-        cv2.imshow("Original", frame)
+        # cv2.imshow("Original", frame)
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
         res, imencode = cv2.imencode(".jpg", frame, encode_param)
         data = np.array(imencode)

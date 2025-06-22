@@ -7,9 +7,11 @@ import socket
 import cv2
 import numpy as np
 import os
+from pathlib import Path
 
 TCP_IP = "0.0.0.0"
 TCP_PORT = 8080
+images_path = Path.home() / "mapping" / "images"
 
 
 class MinimalPublisher(Node):
@@ -30,6 +32,7 @@ class MinimalPublisher(Node):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind((TCP_IP, TCP_PORT))
         self.socket.listen(True)
+        index = 0
         while (True):
             conn, addr = self.socket.accept()
             length = int(self.recvall(conn, 16))
@@ -37,23 +40,8 @@ class MinimalPublisher(Node):
             data = np.fromstring(stringData, dtype="uint8")
 
             img = cv2.imdecode(data, cv2.IMREAD_UNCHANGED)
-            cv2.imshow("Received", img)
-
-        # Camera feed
-        # self.image_subscriber = self.create_subscription(
-        #     Image, "/video_feed", self.frame_received, 10)
-        # self.bridge = CvBridge()
-        # reveive_and_show()
-
-    # def publish_frame(self, frame):
-    #     frame = cv2.resize(frame, (1280, 720))
-    #     # publishes message
-    #     self.image_publisher.publish(
-    #         self.bridge.cv2_to_imgmsg(frame, encoding="passthrough"))
-    #
-    # def frame_received(self, msg: Image):
-    #     img = self.bridge.imgmsg_to_cv2(msg, encoding="passthrough")
-    #     cv2.imshow("frame", img)
+            cv2.imwrite((images_path / f"image{index}.jpg").resolve(), img)
+            index += 1
 
 
 def main(args=None):
