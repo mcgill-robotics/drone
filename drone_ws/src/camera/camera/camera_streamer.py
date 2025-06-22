@@ -1,11 +1,14 @@
 import rclpy
-from cv_bridge import CvBridge
+import socket
 from rclpy.node import Node
-from sensor_msgs.msg import Image
 
 import cv2
 import numpy as np
 import os
+
+# TCP_IP = "192.168.144.134"
+TCP_IP = "localhost"
+TCP_PORT = 8080
 
 
 class MinimalPublisher(Node):
@@ -13,10 +16,11 @@ class MinimalPublisher(Node):
     def __init__(self):
         super().__init__('dummy_computer_vision')
 
-        self.cap = cv2.VideoCapture(
-            "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),width=1920,height=1080,framerate=60/1 ! nvvidconv ! appsink",
-            cv2.CAP_GSTREAMER)
+        # self.cap = cv2.VideoCapture(
+        #     "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),width=1920,height=1080,framerate=60/1 ! nvvidconv ! appsink",
+        #     cv2.CAP_GSTREAMER)
 
+        self.cap = cv2.VideoCapture(0)
         if (self.cap.isOpened()):
             print("The camera is successfully opened")
         else:
@@ -24,16 +28,25 @@ class MinimalPublisher(Node):
             exit()
 
         # Camera feed
-        self.image_publisher = self.create_publisher(Image, "/video_feed", 10)
-        self.bridge = CvBridge()
-        timer_period2 = 0.1
+        # self.image_publisher = self.create_publisher(Image, "/video_feed", 10)
+        # self.bridge = CvBridge()
+        timer_period2 = 1.
+        self.socket = socket.socket()
+        self.socket.connect((TCP_IP, TCP_PORT))
         self.timer = self.create_timer(timer_period2, self.passive_feed_pub)
 
     def publish_frame(self, frame):
-        frame = cv2.resize(frame, (1280, 720))
-        # publishes message
-        self.image_publisher.publish(
-            self.bridge.cv2_to_imgmsg(frame, encoding="passthrough"))
+        #     # publishes message
+        #     self.image_publisher.publish(
+        #         self.bridge.cv2_to_imgmsg(frame, encoding="passthrough"))
+        # frame = cv2.resize(frame, (1280, 720))
+        cv2.imshow("Original", frame)
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+        res, imencode = cv2.imencode(".jpg", frame, encode_param)
+        data = np.array(imencode)
+        stringData = data.tostring()
+        self.socket.send(str(len(stringData)).ljust(16).encode())
+        self.socket.send(stringData)
 
     def passive_feed_pub(self):
         if self.cap.isOpened():
